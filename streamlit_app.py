@@ -11,6 +11,8 @@ from wordcloud import WordCloud
 import plotly.express as px
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import CountVectorizer
+from datetime import datetime
+import pytz
 
 # -------------------- Streamlit Config --------------------
 st.set_page_config(page_title="🎧 YouTube Wrapped+", layout="wide", initial_sidebar_state="auto")
@@ -64,7 +66,20 @@ if uploaded_file is not None:
     data = json.load(uploaded_file)
     df = pd.json_normalize(data)
 
-    df['time'] = pd.to_datetime(df['time'])
+    if 'time' not in df.columns:
+        st.error("⛔️ 'time' field not found in uploaded file.")
+        st.stop()
+
+    def parse_datetime_with_timezone(ts_str):
+        try:
+            dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
+            return dt.astimezone(pytz.timezone("Asia/Kolkata"))
+        except:
+            return None
+
+    df['time'] = df['time'].apply(parse_datetime_with_timezone)
+    df = df.dropna(subset=['time'])
+
     df['channel'] = df['subtitles'].apply(lambda x: x[0]['name'] if isinstance(x, list) and 'name' in x[0] else 'Unknown')
     df['title'] = df['title'].str.replace("Watched ", "", regex=False).str.strip()
     df['date'] = df['time'].dt.date
@@ -89,7 +104,7 @@ if uploaded_file is not None:
         terms.append(", ".join(words))
     df['topic_label'] = df['topic'].apply(lambda x: terms[x])
 
-    # -------------------- Sidebar Filters --------------------
+    # Sidebar Filters
     st.sidebar.title("🔍 Filters")
     selected_year = st.sidebar.selectbox("Filter by Year", options=["All"] + sorted(df['year'].unique().tolist()))
     selected_channel = st.sidebar.selectbox("Filter by Channel", options=["All"] + sorted(df['channel'].unique().tolist()))
@@ -99,7 +114,7 @@ if uploaded_file is not None:
     if selected_channel != "All":
         df = df[df['channel'] == selected_channel]
 
-    # -------------------- Stats --------------------
+    # Stats
     st.subheader("📊 Your Watch Summary")
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Total Videos", len(df))
@@ -107,14 +122,14 @@ if uploaded_file is not None:
     c3.metric("Most Watched Day", df['date'].value_counts().idxmax().strftime("%A, %d %b %Y"))
     c4.metric("Peak Hour", f"{df['hour'].value_counts().idxmax()}:00")
 
-    # -------------------- Charts --------------------
+    # Charts
     st.subheader("🎬 Most Watched Channels")
     st.plotly_chart(px.bar(df['channel'].value_counts().head(10).sort_values(), orientation='h', color_discrete_sequence=['#1e90ff']), use_container_width=True)
 
     st.subheader("🎞️ Most Watched Video Titles")
     st.plotly_chart(px.bar(df['title'].value_counts().head(10).sort_values(), orientation='h', color_discrete_sequence=['#ffa502']), use_container_width=True)
 
-    # -------------------- Word Cloud --------------------
+    # Word Cloud
     st.subheader("☁️ Word Cloud of Watched Titles")
     wc = WordCloud(width=800, height=300, background_color='#f5f7fa', colormap='Blues', max_words=100).generate(" ".join(df['title']))
     fig_wc, ax_wc = plt.subplots(figsize=(10, 3))
@@ -122,7 +137,7 @@ if uploaded_file is not None:
     ax_wc.axis('off')
     st.pyplot(fig_wc)
 
-    # -------------------- Mood Analysis --------------------
+    # Mood Analysis
     st.subheader("💬 Mood Breakdown")
     moods = df['mood'].value_counts()
     fig_mood, ax_mood = plt.subplots(figsize=(3, 3))
@@ -132,13 +147,13 @@ if uploaded_file is not None:
     ax_mood.set_ylabel("")
     st.pyplot(fig_mood)
 
-    # -------------------- Topics --------------------
+    # Topics
     st.subheader("🧠 Topic Clusters from Video Titles")
     topic_df = df['topic_label'].value_counts().reset_index()
     topic_df.columns = ['Topic Keywords', 'Count']
     st.dataframe(topic_df, use_container_width=True)
 
-    # -------------------- Heatmap --------------------
+    # Heatmap
     st.subheader("📅 Activity Heatmap (Days vs Hours)")
     heat_data = df.groupby(['day', 'hour']).size().unstack().reindex([
         'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -148,7 +163,7 @@ if uploaded_file is not None:
     ax_heat.set_title("Watch Intensity")
     st.pyplot(fig_heat)
 
-    # -------------------- Recommendations --------------------
+    # Recommendations
     st.subheader("🤖 Suggested Videos Based on Your History")
     count_vect = CountVectorizer(stop_words='english')
     count_matrix = count_vect.fit_transform(df['title'])
@@ -161,7 +176,7 @@ if uploaded_file is not None:
     for idx in similar_indices:
         st.markdown(f"- 🔗 {df.loc[idx, 'title']}")
 
-    # -------------------- Embedded Links --------------------
+    # Embedded Links
     st.subheader("🔗 Recently Watched Video Links")
     df_links = df[df['title'].str.contains("https://www.youtube.com/watch")].head(10)
     if not df_links.empty:
@@ -170,14 +185,14 @@ if uploaded_file is not None:
     else:
         st.info("No direct video links found in watch history titles.")
 
-    # -------------------- Raw Data & Export --------------------
+    # Raw Data & Export
     with st.expander("📄 Raw Watch Data"):
         st.dataframe(df[['time', 'title', 'channel', 'mood', 'topic_label']], use_container_width=True)
 
     csv = df[['time', 'title', 'channel', 'mood', 'topic_label']].to_csv(index=False).encode('utf-8')
     st.download_button("Download CSV", csv, "youtube_wrapped_data.csv", "text/csv", key='download-csv')
 
-    # -------------------- Footer --------------------
+    # Footer
     st.markdown("""
     ---
     📍 Follow me on [Instagram](https://www.instagram.com/ohadfarooqui) | [LinkedIn](https://www.linkedin.com/in/ohadfarooqui/)  
