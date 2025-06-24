@@ -15,7 +15,7 @@ from datetime import datetime
 import pytz
 
 # -------------------- Streamlit Config --------------------
-st.set_page_config(page_title="🎧 YouTube Wrapped+", layout="wide", initial_sidebar_state="auto")
+st.set_page_config(page_title="🎿 YouTube Wrapped+", layout="wide", initial_sidebar_state="auto")
 
 # -------------------- Clean, Soft Theme --------------------
 st.markdown("""
@@ -55,7 +55,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center; color: #2f3542;'>🎧 YouTube Wrapped+ 2025</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #2f3542;'>🎿 YouTube Wrapped+ 2025</h1>", unsafe_allow_html=True)
 st.caption("Crafted by Ohad Farooqui using Streamlit, NLP, ML, and Visual Insight")
 
 # -------------------- File Upload --------------------
@@ -80,7 +80,13 @@ if uploaded_file is not None:
     df['time'] = df['time'].apply(parse_datetime_with_timezone)
     df = df.dropna(subset=['time'])
 
-    df['channel'] = df['subtitles'].apply(lambda x: x[0]['name'] if isinstance(x, list) and 'name' in x[0] else 'Unknown')
+    def extract_channel(subtitles):
+        if isinstance(subtitles, list) and len(subtitles) > 0 and 'name' in subtitles[0]:
+            return subtitles[0]['name']
+        else:
+            return 'Unlisted/Unavailable'
+
+    df['channel'] = df['subtitles'].apply(extract_channel)
     df['title'] = df['title'].str.replace("Watched ", "", regex=False).str.strip()
     df['date'] = df['time'].dt.date
     df['year'] = df['time'].dt.year
@@ -123,7 +129,7 @@ if uploaded_file is not None:
     c4.metric("Peak Hour", f"{df['hour'].value_counts().idxmax()}:00")
 
     # Charts
-    st.subheader("🎬 Most Watched Channels")
+    st.subheader("🎮 Most Watched Channels")
     st.plotly_chart(px.bar(df['channel'].value_counts().head(10).sort_values(), orientation='h', color_discrete_sequence=['#1e90ff']), use_container_width=True)
 
     st.subheader("🎞️ Most Watched Video Titles")
@@ -154,7 +160,7 @@ if uploaded_file is not None:
     st.dataframe(topic_df, use_container_width=True)
 
     # Heatmap
-    st.subheader("📅 Activity Heatmap (Days vs Hours)")
+    st.subheader("🗕️ Activity Heatmap (Days vs Hours)")
     heat_data = df.groupby(['day', 'hour']).size().unstack().reindex([
         'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
     )
